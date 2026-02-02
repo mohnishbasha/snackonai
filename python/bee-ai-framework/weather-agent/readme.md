@@ -63,7 +63,7 @@ The agent follows a **structured Reason + Act workflow**:
 
 ## ⚙️ Setup and Implementation
 
-# 1️⃣ Download the LLM Model
+-gi 1️⃣ Download the LLM Model
 
 Run the following command to download the Granite 3.3 (8B) model locally:
 
@@ -71,36 +71,36 @@ Run the following command to download the Granite 3.3 (8B) model locally:
 
 ollama pull granite3.3:8b
 ```
-###This allows the agent to run fully offline without any API costs.
+-This allows the agent to run fully offline without any API costs.
 
-# 2️⃣ Create Project Directory
+- 2️⃣ Create Project Directory
  ```bash
  
     mkdir beeai-python-demo
     cd beeai-python-demo
 
 ```
-# 3️⃣ Create and Activate Virtual Environment
+- 3️⃣ Create and Activate Virtual Environment
  ```bash
 
     python -m venv venv
 
 ```
-# Activate it:
+- Activate it:
 
-# Windows
+- Windows
  ```bash
 
 venv\Scripts\activate
 
 ```
-# Mac / Linux
+- Mac / Linux
  ```bash
 
 source venv/bin/activate
 
 ```
-# 4️⃣ Install Dependencies\
+- 4️⃣ Install Dependencies\
 ```bash 
 
     pip install beeai-framework
@@ -108,33 +108,33 @@ source venv/bin/activate
 ```
 # 🤖 Agent Implementation
 
-# The weather_agent.py file creates an intelligent BeeAI agent that:
+- The weather_agent.py file creates an intelligent BeeAI agent that:
 
-# Uses ThinkTool to reason before answering
+- Uses ThinkTool to reason before answering
 
-# Uses OpenMeteoTool for live weather data
+- Uses OpenMeteoTool for live weather data
 
-# Enforces structured behavior using RequirementAgent
+- Enforces structured behavior using RequirementAgent
 
-# Tracks tool interactions for observability
+- Tracks tool interactions for observability
 
 
 
 #▶️ Running the Agent
 
-# Execute the following command:
+- Execute the following command:
 ```bash 
 
 python weather_agent.py
 
 ```
-# You’ll see:
+- You’ll see:
  ```bash
 
 Enter your question:
 
 ```
-#💬 Example Queries
+- 💬 Example Queries
  ```bash
 
 1. Give me the current weather in San Francisco.
@@ -144,7 +144,7 @@ Enter your question:
 3. Show today’s sunrise and sunset weather for Kolkata.
 
 ```
- # Example Output 
+ - Example Output 
  ```bash
 
 Agent: The current weather in San Francisco is 9 degrees Celsius with a relative humidity of 81% and wind speeds of approximately 5.5 km/h.
@@ -152,11 +152,11 @@ Agent: The current weather in San Francisco is 9 degrees Celsius with a relative
 ```
  ✅ Key Takeaways
 
-# This is not a simple chatbot — it’s a reasoning-based AI agent
+- This is not a simple chatbot — it’s a reasoning-based AI agent
 
-# The agent is forced to think before responding
+- The agent is forced to think before responding
 
-# Tool usage is explicit and traceable
+- Tool usage is explicit and traceable
 
 The system is predictable, auditable, and production-ready
 ```bash
