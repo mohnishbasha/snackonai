@@ -1,24 +1,16 @@
-# BeeAI Weather Agent 🌦️  
-*A Step-by-Step Guide to Building a Reasoning-Based Weather Agent using BeeAI Framework*
+<img width="1536" height="1024" alt="ChatGPT Image Feb 3, 2026, 12_55_54 PM" src="https://github.com/user-attachments/assets/a605719a-77a3-4d10-be5c-a25c25388202" />
 
-This project demonstrates how to build a **production-ready Weather AI Agent** using the **BeeAI Framework**.  
-Unlike traditional chatbots, this agent reasons step by step, decides when external data is required, and fetches **real-time weather information** using structured tools.
+# BeeAI Framework: Building A Simple Weather Agent using AI 🌦️  
+ 
+This project showcases how to build a **production-ready Weather AI Agent using the BeeAI Framework**. Unlike traditional chatbots, the agent follows a reasoning-first approach thinking step by step, determining when external data is needed, and responding intelligently rather than generating instant replies.
 
----
-
-## 🚀 What This Project Does
-
-- Accepts natural language weather queries
-- Thinks before responding using a reasoning-first approach
-- Fetches live and forecast weather data
-- Runs fully **offline** using a local LLM
-- Produces concise, accurate, and structured answers
+It accepts natural language weather queries, fetches live and forecast data through structured tools, and delivers concise, accurate, and well-structured answers. Powered by a local LLM, the agent runs fully offline, making it reliable, cost-effective, and suitable for real-world applications that require intelligent decision-making and real-time data access. Read more on our [Newsletter Website](https://www.snackonai.com/) 
+<br/>
 
 ---
-
 ## 🧠 Technology Stack
 
-### **Ollama**
+### **[Ollama](https://ollama.com/download/windows)**
 A lightweight tool that allows you to run large language models locally on your machine using simple terminal commands.
 
 ---
@@ -31,7 +23,7 @@ An open-source IBM large language model optimized for:
 
 ---
 
-### **Python 3.10+**
+### **[Python 3.10+](https://www.python.org/downloads/release/python-3100/)**
 A modern Python runtime required for compatibility with the BeeAI Framework.
 
 ---
@@ -47,9 +39,9 @@ This ensures the agent:
 - Understands what it already knows
 - Identifies missing information
 - Chooses the correct tool instead of guessing
+<br/>
 
 ---
-
 ## 🏗️ Project Architecture
 
 The agent follows a **structured Reason + Act workflow**:
@@ -57,13 +49,14 @@ The agent follows a **structured Reason + Act workflow**:
 2. Agent reasons using `ThinkTool`
 3. Agent decides whether external data is required
 4. Weather data is fetched via `OpenMeteoTool`
-5. A final, well-structured response is generated
+5. A final, well-structured response is generated <br/>
+
+<img width="728" height="858" alt="image" src="https://github.com/user-attachments/assets/8d02d7bf-6f3b-4fe7-812c-04de4895640c" />
 
 ---
-
 ## ⚙️ Setup and Implementation
 
--gi 1️⃣ Download the LLM Model
+- 1️⃣ Download the LLM Model
 
 Run the following command to download the Granite 3.3 (8B) model locally:
 
@@ -71,7 +64,7 @@ Run the following command to download the Granite 3.3 (8B) model locally:
 
 ollama pull granite3.3:8b
 ```
--This allows the agent to run fully offline without any API costs.
+This allows the agent to run fully offline without any API costs.<br/>
 
 - 2️⃣ Create Project Directory
  ```bash
@@ -106,23 +99,14 @@ source venv/bin/activate
     pip install beeai-framework
 
 ```
-# 🤖 Agent Implementation
-
-- The weather_agent.py file creates an intelligent BeeAI agent that:
-
-- Uses ThinkTool to reason before answering
-
-- Uses OpenMeteoTool for live weather data
-
-- Enforces structured behavior using RequirementAgent
-
-- Tracks tool interactions for observability
 
 
+## 🤖 Agent Implementation
 
-#▶️ Running the Agent
+▶️ Running the Agent
 
 - Execute the following command:
+  
 ```bash 
 
 python weather_agent.py
@@ -134,7 +118,7 @@ python weather_agent.py
 Enter your question:
 
 ```
-- 💬 Example Queries
+- Example Queries
  ```bash
 
 1. Give me the current weather in San Francisco.
@@ -148,15 +132,3 @@ Enter your question:
  ```bash
 
 Agent: The current weather in San Francisco is 9 degrees Celsius with a relative humidity of 81% and wind speeds of approximately 5.5 km/h.
-
-```
- ✅ Key Takeaways
-
-- This is not a simple chatbot — it’s a reasoning-based AI agent
-
-- The agent is forced to think before responding
-
-- Tool usage is explicit and traceable
-
-The system is predictable, auditable, and production-ready
-```bash
