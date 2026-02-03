@@ -1,27 +1,13 @@
+<img width="1536" height="1024" alt="ChatGPT Image Feb 3, 2026, 01_48_24 PM" src="https://github.com/user-attachments/assets/6aad8944-20df-484c-89ad-4088b7f93512" />
+
+
 # LinkedIn Scout Agent 🤖🔍  
 **Building a Custom Agent with BeeAI Framework**
+This project introduces the LinkedIn Scout Agent, an intelligent agent built using the BeeAI Framework to discover real hiring managers, founders, and decision-makers on LinkedIn. Instead of relying on manual searches or unreliable scraping, the agent interprets natural language queries, reasons through intent, and identifies the most relevant profiles based on role, industry, and location.
 
-In our previous blog, **BeeAI Framework: Building a Simple Weather Agent**, we explored the foundations of agentic workflows and built our first BeeAI agents using pre-built tools. We discussed why the industry is moving beyond simple chatbots toward intelligent, autonomous agents that can reason, plan, and act with intent rather than merely generating text.
-
-In this project, we take the next step.
-
-Instead of relying on pre-packaged capabilities, we build **custom intelligence** by creating a **LinkedIn Scout Agent** using the BeeAI Framework. This agent is designed to solve a real-world problem faced by job seekers, founders, and sales professionals:  
-**finding real hiring managers and decision-makers on LinkedIn based on role, industry, and location.**
+Under the hood, the agent follows a structured, reasoning-first workflow. It plans its actions using ThinkTool, executes controlled Google searches via a custom SerpAPI tool, and returns clean, predictable results using strict input schemas. By enforcing limits, observability, and step-by-step reasoning, the agent operates safely and reliably, making it suitable for real-world, production-grade use cases. Read more on our [Newsletter Website](https://www.snackonai.com/)
 
 ---
-
-## 🚀 What This Agent Does
-
-- Searches LinkedIn profiles using advanced Google dorking
-- Identifies real hiring managers, founders, or decision-makers
-- Reasons before acting to ensure accurate and targeted results
-- Uses structured schemas for safe, predictable tool execution
-- Enforces limits to prevent uncontrolled API usage
-
-This is not a chatbot — it’s a **purpose-built, reasoning-driven agent**.
-
----
-
 ## 🧠 Technology Stack
 
 ### Ollama
@@ -44,7 +30,7 @@ Forces the agent to pause, reason, and plan before responding — ensuring step-
 
 ---
 
-## 🧩 Agentic Workflow
+## 🧩 Architecture
 
 The agent follows a structured execution flow:
 1. Understand the user intent
@@ -52,6 +38,8 @@ The agent follows a structured execution flow:
 3. Decide whether external data is required
 4. Execute a controlled search via SerpAPI
 5. Return clean, structured results
+
+<img width="594" height="787" alt="image" src="https://github.com/user-attachments/assets/29e6c386-3afd-4280-af6f-5eac21dcb179" />
 
 This architecture ensures predictability, safety, and explainability.
 
@@ -105,17 +93,6 @@ pip install pydantic
 linkedin-scout-agent.py
  
 ```
-#### This agent:
-
-- Uses Pydantic schemas to define strict input contracts
-
-- Implements a custom SerpAPI tool
-
-- Enforces reasoning before action using ThinkTool
-
-- Limits API calls to prevent misuse
-
-- Tracks tool execution for observability
 
 ### ▶️ Running the Agent
 - Update the following line with your SerpAPI key:
@@ -136,7 +113,7 @@ python linkedin_scout_agent.py
 query = "Find 2 Hiring Managers for Android Development in San Francisco, California."
 
 ```
-📤 Example Output
+### Output
 ```bash
 
 --- Agent Response ---
@@ -151,35 +128,3 @@ query = "Find 2 Hiring Managers for Android Development in San Francisco, Califo
    Position: Android Development Lead & Hiring Manager  
    Location: San Francisco, California
 
-```
-## 🔍 Design Logic Behind the Agent
-
-### Clear Input Contracts
-
-Pydantic schemas ensure the agent knows exactly what data each tool requires, removing ambiguity and improving API accuracy.
-
-### Thoughtful Tool Architecture
-
-####Custom tools include:
-
-- Explicit input schemas
-- Built-in observability
-- Non-blocking async execution
-
-### Protection & Safety
-
-- Usage limits prevent uncontrolled API calls, protecting real-world budgets and system stability.
-
-### Reasoning Before Action
-
-- By enforcing ThinkTool, the agent plans before executing searches — resulting in higher-quality, targeted outputs.
-
-### ✅ Key Takeaways
-
-- This project moves beyond theory into real-world agentic AI
-
-- The agent doesn’t just chat — it acts with intent
-
-- BeeAI enables structured reasoning, safe tool usage, and production-ready safeguards
-
-- Demonstrates how agents can solve practical problems, not demos
