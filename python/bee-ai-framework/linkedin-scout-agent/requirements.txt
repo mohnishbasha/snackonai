@@ -1,3 +1,0 @@
-beeai-framework
-requests
-pydantic
