@@ -13,6 +13,9 @@ import argparse
 import subprocess
 import sys
 import shutil
+import threading
+import time
+import itertools
 from io import BytesIO
 from pathlib import Path
 
@@ -154,17 +157,43 @@ def add_watermark(image_bytes: bytes, text: str) -> bytes:
 def generate_image(prompt: str, width: int, height: int) -> bytes:
     """Call Ollama CLI and return raw PNG bytes."""
     print(f"\nGenerating image ({width}×{height}) — this may take a moment…")
-    try:
-        result = subprocess.run(
-            ["ollama", "run", MODEL, prompt, "--width", str(width), "--height", str(height)],
-            capture_output=True, text=True, timeout=300
-        )
-    except subprocess.TimeoutExpired:
+
+    result_container: dict = {}
+    error_container: dict = {}
+
+    def _run():
+        try:
+            result_container["result"] = subprocess.run(
+                ["ollama", "run", MODEL, prompt, "--width", str(width), "--height", str(height)],
+                capture_output=True, text=True, timeout=300
+            )
+        except subprocess.TimeoutExpired:
+            error_container["type"] = "timeout"
+        except OSError as e:
+            error_container["type"] = "os"
+            error_container["msg"] = str(e)
+
+    thread = threading.Thread(target=_run, daemon=True)
+    thread.start()
+
+    spinner = itertools.cycle(["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"])
+    while thread.is_alive():
+        sys.stdout.write(f"\r  {next(spinner)} Generating image…")
+        sys.stdout.flush()
+        time.sleep(0.1)
+    sys.stdout.write("\r  ✓ Done generating.          \n")
+    sys.stdout.flush()
+
+    thread.join()
+
+    if error_container.get("type") == "timeout":
         print("Error: Image generation timed out after 5 minutes.", file=sys.stderr)
         sys.exit(1)
-    except OSError as e:
-        print(f"Error running Ollama: {e}", file=sys.stderr)
+    if error_container.get("type") == "os":
+        print(f"Error running Ollama: {error_container['msg']}", file=sys.stderr)
         sys.exit(1)
+
+    result = result_container["result"]
 
     if result.returncode != 0:
         print("Error: Ollama returned a non-zero exit code.", file=sys.stderr)
@@ -224,9 +253,9 @@ def parse_args() -> argparse.Namespace:
 def main() -> None:
     args = parse_args()
 
-    print("═" * 55)
-    print("  AI Image Generator  │  Powered by Ollama + Pillow")
-    print("═" * 55)
+    print("═" * 95)
+    print("  Mr. Pixel Smith: AI Image Generator  │  Powered by Ollama + Pillow")
+    print("═" * 95)
 
     # 1. Preflight
     print("\nChecking Ollama…")
