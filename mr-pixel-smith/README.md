@@ -2,6 +2,9 @@
 
 An AI image generator powered by [Ollama](https://ollama.com) with automatic watermarking via Pillow.
 
+<img width="1200" height="624" alt="mr-pixel-smith-floating-clouds-stars-4k" src="https://github.com/user-attachments/assets/068bbd41-0b60-41cc-a42e-4a0e5903135c" />
+
+
 ## Requirements
 
 - [Ollama](https://ollama.com) installed and running (`ollama serve`)
