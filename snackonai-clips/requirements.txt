@@ -1,0 +1,29 @@
+# ── Core content extraction ────────────────────────────────────────────────
+trafilatura>=1.9.0          # Preferred HTML → text extractor
+readability-lxml>=0.8.1     # Fallback extractor
+newspaper3k>=0.2.8          # Last-resort extractor
+
+# ── HTTP ──────────────────────────────────────────────────────────────────
+requests>=2.31.0
+
+# ── LLM providers ─────────────────────────────────────────────────────────
+openai>=1.35.0              # OpenAI API (GPT-4o-mini default)
+# ollama                    # Uncomment if using Ollama Python SDK (optional)
+
+# ── Video generation ──────────────────────────────────────────────────────
+moviepy>=1.0.3
+numpy>=1.24.0
+Pillow>=10.0.0
+
+# ── TTS ───────────────────────────────────────────────────────────────────
+gTTS>=2.5.0                 # Free TTS
+elevenlabs>=1.1.0           # Premium TTS (optional, requires API key)
+mutagen>=1.47.0             # Audio file metadata (duration detection)
+
+# ── CLI / UX ──────────────────────────────────────────────────────────────
+rich>=13.7.0                # Beautiful terminal output & progress bars
+
+# ── Testing ───────────────────────────────────────────────────────────────
+pytest>=8.0.0
+pytest-cov>=5.0.0
+pytest-mock>=3.14.0
