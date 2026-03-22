@@ -10,12 +10,18 @@ Usage:
 """
 
 import argparse
+import base64
+import json
+import re
 import subprocess
 import sys
 import shutil
 import threading
 import time
 import itertools
+import urllib.request
+import urllib.error
+from datetime import datetime
 from io import BytesIO
 from pathlib import Path
 
@@ -154,10 +160,11 @@ def add_watermark(image_bytes: bytes, text: str) -> bytes:
     return buf.getvalue()
 
 
-def generate_image(prompt: str, width: int, height: int) -> bytes:
-    """Call Ollama CLI and return raw PNG bytes."""
-    print(f"\nGenerating image ({width}×{height}) — this may take a moment…")
+OLLAMA_API = "http://localhost:11434"
 
+
+def _generate_via_cli(prompt, width, height):
+    """Try CLI approach: ollama run → look for 'Image saved to:' in output."""
     result_container: dict = {}
     error_container: dict = {}
 
@@ -178,49 +185,117 @@ def generate_image(prompt: str, width: int, height: int) -> bytes:
 
     spinner = itertools.cycle(["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"])
     while thread.is_alive():
-        sys.stdout.write(f"\r  {next(spinner)} Generating image…")
+        sys.stdout.write(f"\r  {next(spinner)} Generating image (CLI)…")
         sys.stdout.flush()
         time.sleep(0.1)
-    sys.stdout.write("\r  ✓ Done generating.          \n")
+    sys.stdout.write("\r  ✓ Done.                          \n")
     sys.stdout.flush()
-
     thread.join()
 
-    if error_container.get("type") == "timeout":
-        print("Error: Image generation timed out after 5 minutes.", file=sys.stderr)
-        sys.exit(1)
-    if error_container.get("type") == "os":
-        print(f"Error running Ollama: {error_container['msg']}", file=sys.stderr)
-        sys.exit(1)
+    if error_container:
+        return None
 
-    result = result_container["result"]
+    result = result_container.get("result")
+    if not result or result.returncode != 0:
+        return None
 
-    if result.returncode != 0:
-        print("Error: Ollama returned a non-zero exit code.", file=sys.stderr)
-        stderr_msg = result.stderr.strip()
-        if stderr_msg:
-            print(f"  stderr: {stderr_msg}", file=sys.stderr)
-        sys.exit(1)
-
-    if not result.stdout.strip():
-        print("Error: Ollama returned empty output. Check that the model is pulled:", file=sys.stderr)
-        print(f"  ollama pull {MODEL}", file=sys.stderr)
-        sys.exit(1)
-
-    # Ollama saves the image to disk and prints: "Image saved to: <path>"
-    for line in result.stdout.splitlines():
+    combined = result.stdout + "\n" + result.stderr
+    for line in combined.splitlines():
         if line.startswith("Image saved to:"):
             saved_path = line.split(":", 1)[1].strip()
             try:
                 image_bytes = Path(saved_path).read_bytes()
                 Path(saved_path).unlink(missing_ok=True)
                 return image_bytes
-            except OSError as e:
-                print(f"Error reading generated image '{saved_path}': {e}", file=sys.stderr)
-                sys.exit(1)
+            except OSError:
+                return None
 
-    print("Error: Could not find 'Image saved to:' in Ollama output.", file=sys.stderr)
-    print(f"  Raw output (first 300 chars): {result.stdout[:300]}", file=sys.stderr)
+    return None
+
+
+def _generate_via_api(prompt, width, height):
+    """Fallback: Ollama HTTP API → base64 response."""
+    result_container: dict = {}
+    error_container: dict = {}
+
+    def _run():
+        try:
+            payload = json.dumps({
+                "model": MODEL,
+                "prompt": prompt,
+                "stream": False,
+                "options": {"width": width, "height": height},
+            }).encode()
+            req = urllib.request.Request(
+                f"{OLLAMA_API}/api/generate",
+                data=payload,
+                headers={"Content-Type": "application/json"},
+                method="POST",
+            )
+            with urllib.request.urlopen(req, timeout=300) as resp:
+                result_container["body"] = resp.read().decode()
+        except urllib.error.URLError as e:
+            error_container["msg"] = str(e)
+        except TimeoutError:
+            error_container["timeout"] = True
+
+    thread = threading.Thread(target=_run, daemon=True)
+    thread.start()
+
+    spinner = itertools.cycle(["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"])
+    while thread.is_alive():
+        sys.stdout.write(f"\r  {next(spinner)} Generating image (API)…")
+        sys.stdout.flush()
+        time.sleep(0.1)
+    sys.stdout.write("\r  ✓ Done.                          \n")
+    sys.stdout.flush()
+    thread.join()
+
+    if error_container:
+        return None
+
+    try:
+        data = json.loads(result_container.get("body", ""))
+    except (json.JSONDecodeError, KeyError):
+        return None
+
+    # Try known keys where ollama may return image data
+    for key in ("image", "response", "images"):
+        val = data.get(key)
+        if not val:
+            continue
+        if isinstance(val, list):
+            val = val[0]
+        try:
+            return base64.b64decode(val)
+        except Exception:
+            pass
+
+    return None
+
+
+def make_output_filename(prompt: str, width: int, height: int) -> str:
+    """Generate a descriptive filename from prompt and dimensions."""
+    slug = re.sub(r"[^a-z0-9]+", "-", prompt.lower().strip())[:40].strip("-")
+    ts = datetime.now().strftime("%Y%m%d-%H%M%S")
+    return f"{slug}-{width}x{height}-{ts}.png"
+
+
+def generate_image(prompt, width, height):
+    """Try CLI first, fall back to HTTP API."""
+    print(f"\nGenerating image ({width}×{height}) — this may take a moment…")
+
+    image_bytes = _generate_via_cli(prompt, width, height)
+    if image_bytes:
+        return image_bytes
+
+    print("  CLI produced no output, trying HTTP API…")
+    image_bytes = _generate_via_api(prompt, width, height)
+    if image_bytes:
+        return image_bytes
+
+    print("Error: Both CLI and HTTP API failed to produce an image.", file=sys.stderr)
+    print(f"  Ensure the model is pulled: ollama pull {MODEL}", file=sys.stderr)
     sys.exit(1)
 
 
@@ -278,9 +353,12 @@ def main() -> None:
         width  = get_int_input("Width  (px)", width)
         height = get_int_input("Height (px)", height)
 
-    output_path = args.output.strip() or OUTPUT_FILE
-    if not output_path.lower().endswith(".png"):
-        output_path += ".png"
+    if args.output and args.output.strip() and args.output.strip() != OUTPUT_FILE:
+        output_path = args.output.strip()
+        if not output_path.lower().endswith(".png"):
+            output_path += ".png"
+    else:
+        output_path = make_output_filename(prompt, width, height)
 
     # 3. Generate
     image_bytes = generate_image(prompt, width, height)
