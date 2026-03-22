@@ -7,6 +7,7 @@ An AI image generator powered by [Ollama](https://ollama.com) with automatic wat
 
 ## Requirements
 
+- **macOS with Apple Silicon** — `x/z-image-turbo` uses Apple's MLX framework and only runs on macOS. Linux and Docker are not supported.
 - [Ollama](https://ollama.com) installed and running (`ollama serve`)
 - The `x/z-image-turbo` model pulled locally
 - Python 3.8+
