@@ -1,0 +1,11 @@
+{
+  "headline": "AI Is Reshaping Modern Software Development Forever",
+  "summary": "Artificial intelligence tools are fundamentally changing how developers write and review code. Models like GPT-4 can generate full functions from plain English, and GitHub Copilot is now used by over a million developers. The productivity gains are real, but critical thinking and system design remain irreplacably human.",
+  "bullets": [
+    "AI code completion cuts boilerplate by up to 55%",
+    "GitHub Copilot adopted by millions of developers worldwide",
+    "Natural language → working code is now production-ready",
+    "Security review and architecture still demand human judgment",
+    "Teams prototype and iterate faster than ever before"
+  ]
+}
