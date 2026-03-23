@@ -11,9 +11,15 @@ openai>=1.35.0              # OpenAI API (GPT-4o-mini default)
 # ollama                    # Uncomment if using Ollama Python SDK (optional)
 
 # ── Video generation ──────────────────────────────────────────────────────
-moviepy>=1.0.3
-numpy>=1.24.0
+# NOTE: ImageMagick must be installed separately for TextClip (text rendering):
+#   macOS:  brew install imagemagick
+#   Ubuntu: sudo apt install imagemagick
+#   Windows (Chocolatey): choco install imagemagick
+moviepy==1.0.3              # Pin to 1.0.3 — stable API, 2.x has breaking changes
+numpy>=1.24.0,<2.0.0        # moviepy 1.x is not compatible with numpy 2.x
 Pillow>=10.0.0
+imageio>=2.28.0             # moviepy backend for frame I/O
+imageio-ffmpeg>=0.4.9       # bundled ffmpeg binary (no separate ffmpeg install needed)
 
 # ── TTS ───────────────────────────────────────────────────────────────────
 gTTS>=2.5.0                 # Free TTS

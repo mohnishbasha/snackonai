@@ -64,12 +64,26 @@ def retry(
 
 
 def is_valid_url(url: str) -> bool:
-    """Return True if url has a valid scheme and netloc."""
+    """Return True if url has a valid http/https scheme and netloc."""
     try:
         parsed = urlparse(url)
         return parsed.scheme in ("http", "https") and bool(parsed.netloc)
     except Exception:
         return False
+
+
+def is_local_input(path: str) -> bool:
+    """Return True if path is a local file path or a file:// URL."""
+    if not path:
+        return False
+    try:
+        parsed = urlparse(path)
+        if parsed.scheme == "file":
+            return True
+    except Exception:
+        pass
+    import os
+    return os.path.exists(path)
 
 
 def truncate_text(text: str, max_chars: int) -> str:

@@ -49,7 +49,13 @@ Examples:
     )
 
     # Core
-    parser.add_argument("--url", required=True, help="Blog or article URL to summarize")
+    parser.add_argument(
+        "--url", required=True,
+        help=(
+            "Blog/article URL (https://...) OR local file path "
+            "(/path/to/article.html, ./article.txt, file:///path/to/article.html)"
+        ),
+    )
     parser.add_argument(
         "--output", default="output.mp4", metavar="PATH",
         help="Output video file path (default: output.mp4)",

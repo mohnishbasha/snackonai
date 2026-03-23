@@ -3,16 +3,19 @@
 > Turn any blog post into a LinkedIn-ready short video in seconds.
 
 **SnackOnAIClips** is a production-grade Python CLI and package that:
-1. Fetches and cleans article content from any URL
+1. Fetches and cleans article content from any URL **or local file**
 2. Summarizes it into a headline, 2–3 sentence narration, and 3–5 bullet points using an LLM
 3. Generates a **1080×1920 vertical MP4** (≤60 seconds) with text slides, optional voiceover, and your watermark
+
+Runs on **macOS** and **Ubuntu** (22.04 / 24.04).
 
 ---
 
 ## Features
 
 - Multi-strategy content extraction (trafilatura → readability → newspaper3k)
-- LLM summarization via **OpenAI** or **Ollama** (local, free)
+- **Local file support** — pass a `.html` or `.txt` path instead of a URL (works fully offline)
+- LLM summarization via **OpenAI** or **Ollama** (fully local, no API key needed)
 - Automatic fallback summarizer if LLM is unavailable
 - Optional TTS voiceover via **gTTS** (free) or **ElevenLabs** (premium)
 - Three visual style presets: `minimal`, `modern`, `cinematic`
@@ -24,38 +27,72 @@
 
 ---
 
+## Platform Compatibility
+
+| Component | macOS (Homebrew) | Ubuntu 22.04 / 24.04 |
+|-----------|-----------------|----------------------|
+| Python | 3.11+ via `brew` or `pyenv` | 3.10 (22.04) / 3.12 (24.04) |
+| ImageMagick | IMv7 — `brew install imagemagick` | IMv6 — `apt install imagemagick` |
+| IM binary | auto-set to `magick` | kept as `convert` (IMv6 default) |
+| IM policy | no restriction | policy.xml fix required (see below) |
+| Fonts | Homebrew DejaVu or system Arial | `apt install fonts-dejavu-core` |
+| ffmpeg | bundled via `imageio-ffmpeg` | bundled via `imageio-ffmpeg` |
+| Ollama | native app | Docker or native binary |
+
+---
+
 ## Installation
 
-### 1. Clone and set up a virtual environment
+### macOS
 
 ```bash
-git clone https://github.com/snackonai/mr-video-smith.git
-cd mr-video-smith
-python -m venv .venv
-source .venv/bin/activate   # Windows: .venv\Scripts\activate
+# 1. System dependencies
+brew install imagemagick
+brew install --cask font-dejavu   # or: brew tap homebrew/cask-fonts first
+
+# 2. Clone and set up Python environment
+git clone https://github.com/snackonai/snackonai-clips.git
+cd snackonai-clips
+python3 -m venv .venv
+source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
-### 2. Install ImageMagick (required for text rendering)
+### Ubuntu 22.04 / 24.04
 
 ```bash
-# macOS
-brew install imagemagick
+# 1. System dependencies
+sudo apt update
+sudo apt install -y imagemagick fonts-dejavu-core
 
-# Ubuntu/Debian
-sudo apt install imagemagick
+# 2. Fix ImageMagick's restrictive security policy (required for MoviePy TextClip)
+#    Ubuntu ships with a policy that blocks PNG writes from temp paths.
+sudo sed -i 's/rights="none" pattern="PNG"/rights="read|write" pattern="PNG"/' \
+  /etc/ImageMagick-6/policy.xml
 
-# Windows (via Chocolatey)
-choco install imagemagick
+# 3. Clone and set up Python environment
+git clone https://github.com/snackonai/snackonai-clips.git
+cd snackonai-clips
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
 ```
 
-### 3. Set environment variables
+> **Ubuntu 20.04**: Python 3.8 is the default but the codebase requires 3.10+.
+> Install a newer version first:
+> ```bash
+> sudo add-apt-repository ppa:deadsnakes/ppa
+> sudo apt install python3.11 python3.11-venv
+> python3.11 -m venv .venv
+> ```
+
+### Set environment variables
 
 ```bash
 # Required for OpenAI (default LLM provider)
 export OPENAI_API_KEY="sk-..."
 
-# Optional: use Ollama instead
+# Optional: use Ollama instead (fully offline)
 export SNACKONAI_LLM_PROVIDER="ollama"
 export OLLAMA_MODEL="llama3.2"
 
@@ -68,10 +105,23 @@ export SNACKONAI_TTS_PROVIDER="elevenlabs"
 
 ## Usage
 
-### Basic
+### Basic (remote URL)
 
 ```bash
 python snackonaiclips.py --url https://example.com/blog/post
+```
+
+### Local file (fully offline)
+
+```bash
+# HTML file
+python snackonaiclips.py --url ./my-article.html --llm ollama --no-tts
+
+# Plain text file
+python snackonaiclips.py --url ./my-article.txt --llm ollama --no-tts
+
+# Absolute path or file:// URL
+python snackonaiclips.py --url "file:///home/user/articles/post.html" --llm ollama --no-tts
 ```
 
 ### With style and watermark
@@ -93,7 +143,7 @@ python snackonaiclips.py \
   --json-output summary.json
 ```
 
-### Disable TTS (silent video)
+### Silent video (no TTS)
 
 ```bash
 python snackonaiclips.py \
@@ -121,11 +171,37 @@ python snackonaiclips.py \
 
 ---
 
+## Offline / Air-gapped Usage
+
+SnackOnAIClips can run with **zero internet connectivity**:
+
+```bash
+# 1. Start Ollama locally
+ollama pull llama3.2
+ollama serve
+
+# 2. Run against a local file
+python snackonaiclips.py \
+  --url ./article.html \
+  --llm ollama \
+  --no-tts \
+  --output output.mp4
+```
+
+| Component | Offline alternative |
+|-----------|---------------------|
+| Remote URL fetch | Pass a local `.html` or `.txt` file path |
+| OpenAI LLM | `--llm ollama` with a locally-pulled model |
+| gTTS voiceover | `--no-tts` |
+| Video rendering | Always local (MoviePy + NumPy) |
+
+---
+
 ## CLI Reference
 
 | Flag | Default | Description |
 |------|---------|-------------|
-| `--url` | *(required)* | Blog or article URL to process |
+| `--url` | *(required)* | URL **or** local file path (`.html`, `.txt`, `file://...`) |
 | `--output` | `output.mp4` | Output video file path |
 | `--style` | `modern` | Visual style: `minimal`, `modern`, `cinematic` |
 | `--watermark` | `SnackOnAI` | Watermark text (pass `""` to disable) |
@@ -158,19 +234,72 @@ python snackonaiclips.py \
 
 ---
 
+## Dependencies
+
+### Python packages (`pip install -r requirements.txt`)
+
+| Package | Version | Purpose |
+|---------|---------|---------|
+| `moviepy` | `==1.0.3` | Video composition (pinned — 2.x has breaking API changes) |
+| `numpy` | `>=1.24,<2.0` | Frame generation (moviepy 1.x incompatible with numpy 2.x) |
+| `imageio-ffmpeg` | `>=0.4.9` | Bundled ffmpeg binary — no separate ffmpeg install needed |
+| `trafilatura` | `>=1.9` | Primary HTML extractor |
+| `readability-lxml` | `>=0.8.1` | Fallback HTML extractor |
+| `openai` | `>=1.35` | OpenAI API client |
+| `gTTS` | `>=2.5` | Free text-to-speech |
+| `rich` | `>=13.7` | Terminal progress & formatting |
+
+### System dependencies
+
+| Tool | macOS | Ubuntu | Required for |
+|------|-------|--------|-------------|
+| **ImageMagick** | `brew install imagemagick` | `sudo apt install imagemagick` | Text rendering in video slides |
+| **Fonts (DejaVu)** | `brew install --cask font-dejavu` | `sudo apt install fonts-dejavu-core` | Slide typography |
+| **IM policy fix** | *(not needed)* | `sudo sed -i ...` (see install section) | Allow MoviePy PNG temp writes on Ubuntu |
+
+---
+
+## Troubleshooting
+
+### `OSError: convert: unable to read font` (macOS)
+
+ImageMagick v7 deprecated `convert`. The code auto-detects this and switches to `magick`, but fonts must be installed:
+
+```bash
+brew install --cask font-dejavu
+# or install any TTF font and set SNACKONAI_FONT_DIR
+```
+
+### `OSError: ... PNG32:/tmp/tmp*.png` (Ubuntu)
+
+ImageMagick's policy.xml is blocking writes to `/tmp`. Run the policy fix:
+
+```bash
+sudo sed -i 's/rights="none" pattern="PNG"/rights="read|write" pattern="PNG"/' \
+  /etc/ImageMagick-6/policy.xml
+```
+
+The tool will also detect this automatically and print the exact fix command if it encounters the restriction at startup.
+
+### `WARNING: The convert command is deprecated in IMv7`
+
+This is suppressed automatically — the code sets the binary to `magick` when IMv7 is detected. If you still see it, ensure ImageMagick is installed: `brew install imagemagick`.
+
+---
+
 ## Project Structure
 
 ```
-mr-video-smith/
+snackonai-clips/
 ├── snackonaiclips.py          # Entry-point script
 ├── snackonaiclips/
 │   ├── __init__.py
 │   ├── cli.py                 # CLI argument parsing & pipeline orchestration
 │   ├── config.py              # Typed configuration (env vars + defaults)
-│   ├── extractor.py           # URL → clean article text
+│   ├── extractor.py           # URL / local file → clean article text
 │   ├── summarizer.py          # Article text → structured JSON summary
 │   ├── tts.py                 # Summary → voiceover MP3
-│   ├── video_generator.py     # Summary + audio → MP4
+│   ├── video_generator.py     # Summary + audio → MP4 (cross-platform)
 │   ├── utils.py               # Logging, retry decorator, helpers
 │   ├── claude.md              # System design decisions
 │   ├── skills.md              # Technologies & skills reference
@@ -204,8 +333,6 @@ pytest -k "not integration" -v
 
 ## Sample Output
 
-Running against a real AI/tech blog post produces:
-
 ```json
 {
   "headline": "AI Is Reshaping Modern Software Development Forever",
@@ -225,20 +352,21 @@ Running against a real AI/tech blog post produces:
 ## Architecture
 
 ```
-┌─────────────┐    ┌──────────────┐    ┌─────────────┐    ┌──────────────────┐
-│    URL      │───▶│  Extractor   │───▶│ Summarizer  │───▶│  Video Generator │
-│             │    │              │    │             │    │                  │
-│ blog post   │    │ trafilatura  │    │ OpenAI      │    │ MoviePy slides   │
-│             │    │ readability  │    │ Ollama      │    │ Gradient BG      │
-│             │    │ newspaper3k  │    │ Fallback    │    │ TTS voiceover    │
-└─────────────┘    └──────────────┘    └─────────────┘    └──────────────────┘
-                                                                    │
-                                                                    ▼
-                                                          ┌──────────────────┐
-                                                          │   output.mp4     │
-                                                          │  1080×1920       │
-                                                          │  ≤ 60 seconds    │
-                                                          └──────────────────┘
+┌──────────────────┐    ┌──────────────┐    ┌─────────────┐    ┌──────────────────┐
+│  URL or file     │───▶│  Extractor   │───▶│ Summarizer  │───▶│  Video Generator │
+│                  │    │              │    │             │    │                  │
+│ https://...      │    │ trafilatura  │    │ OpenAI      │    │ MoviePy slides   │
+│ ./article.html   │    │ readability  │    │ Ollama      │    │ Gradient BG      │
+│ ./article.txt    │    │ newspaper3k  │    │ Fallback    │    │ TTS voiceover    │
+│ file:///...      │    │ local read   │    │             │    │ cross-platform   │
+└──────────────────┘    └──────────────┘    └─────────────┘    └──────────────────┘
+                                                                        │
+                                                                        ▼
+                                                              ┌──────────────────┐
+                                                              │   output.mp4     │
+                                                              │  1080×1920       │
+                                                              │  ≤ 60 seconds    │
+                                                              └──────────────────┘
 ```
 
 ---

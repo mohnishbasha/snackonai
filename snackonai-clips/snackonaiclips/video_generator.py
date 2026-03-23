@@ -124,11 +124,186 @@ def _wrap_text(text: str, max_chars_per_line: int = 30) -> str:
 
 
 # ---------------------------------------------------------------------------
+# ImageMagick + font detection  (cross-platform: macOS & Ubuntu)
+# ---------------------------------------------------------------------------
+
+import platform as _platform
+import shutil as _shutil
+
+
+def _check_linux_imagemagick_policy() -> None:
+    """
+    Detect Ubuntu's restrictive ImageMagick policy.xml and raise a clear error.
+
+    Ubuntu ships ImageMagick with a security policy that blocks writing PNG files
+    from temporary paths — exactly what MoviePy's TextClip does internally.
+    The symptom is an OSError that looks identical to a missing font.
+    We detect the restriction early and surface the exact fix command.
+    """
+    import glob
+
+    for policy_path in glob.glob("/etc/ImageMagick-*/policy.xml"):
+        try:
+            content = Path(policy_path).read_text()
+        except OSError:
+            continue
+
+        blocked = (
+            'rights="none" pattern="PNG"' in content
+            or 'rights="none" pattern="@*"' in content
+        )
+        if not blocked:
+            continue
+
+        # Build the sed command that fixes the specific restriction found
+        if 'rights="none" pattern="PNG"' in content:
+            sed_expr = r's/rights="none" pattern="PNG"/rights="read|write" pattern="PNG"/'
+        else:
+            sed_expr = r's/rights="none" pattern="@\*"/rights="read|write" pattern="@*"/'
+
+        raise RuntimeError(
+            f"ImageMagick's security policy blocks PNG writing (required by MoviePy TextClip).\n\n"
+            f"Fix it with:\n"
+            f"  sudo sed -i '{sed_expr}' {policy_path}\n\n"
+            f"Then re-run the command."
+        )
+
+
+def _configure_imagemagick() -> None:
+    """
+    Configure MoviePy's ImageMagick binary for the current platform.
+
+    macOS (Homebrew IMv7):
+        `convert` is deprecated — set binary to `magick`.
+
+    Ubuntu (IMv6, default apt package):
+        `convert` still works — no binary change needed.
+        But check for the restrictive policy.xml that blocks TextClip.
+
+    Ubuntu (IMv7, manually installed):
+        Same as macOS — set binary to `magick`, check policy.
+
+    Windows:
+        ImageMagick installer registers `magick` — set binary if found.
+    """
+    from moviepy.config import change_settings
+
+    system = _platform.system()  # "Darwin" | "Linux" | "Windows"
+
+    if system in ("Darwin", "Windows"):
+        # IMv7 uses `magick`; prefer it to avoid the deprecation warning from `convert`
+        if _shutil.which("magick"):
+            change_settings({"IMAGEMAGICK_BINARY": "magick"})
+            logger.debug("ImageMagick binary → 'magick' (%s IMv7)", system)
+
+    elif system == "Linux":
+        if _shutil.which("magick") and not _shutil.which("convert"):
+            # IMv7 only — use `magick`
+            change_settings({"IMAGEMAGICK_BINARY": "magick"})
+            logger.debug("ImageMagick binary → 'magick' (Linux IMv7)")
+        elif _shutil.which("magick"):
+            # Both present — prefer `magick` to silence the deprecation warning
+            change_settings({"IMAGEMAGICK_BINARY": "magick"})
+            logger.debug("ImageMagick binary → 'magick' (Linux, both present)")
+        # else: IMv6 only → keep MoviePy's default 'convert'
+
+        # Always check the policy on Linux — fails fast with a clear fix command
+        _check_linux_imagemagick_policy()
+
+
+# ---------------------------------------------------------------------------
+# Font detection — platform-aware, cached
+# ---------------------------------------------------------------------------
+
+# Bold font candidates — checked in priority order
+_BOLD_FONT_CANDIDATES = [
+    # macOS: Homebrew DejaVu (arm64 and x86)
+    "/opt/homebrew/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
+    "/usr/local/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
+    # macOS: system fonts
+    "/System/Library/Fonts/Supplemental/Arial Bold.ttf",
+    "/Library/Fonts/Arial Bold.ttf",
+    "/System/Library/Fonts/Helvetica.ttc",
+    # Ubuntu/Debian: fonts-dejavu-core (most common)
+    "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
+    "/usr/share/fonts/dejavu/DejaVuSans-Bold.ttf",
+    # Ubuntu/Debian: fonts-liberation (often pre-installed)
+    "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf",
+    "/usr/share/fonts/liberation/LiberationSans-Bold.ttf",
+    # Ubuntu/Debian: fonts-freefont-ttf
+    "/usr/share/fonts/truetype/freefont/FreeSansBold.ttf",
+    # Ubuntu/Debian: Ubuntu font family
+    "/usr/share/fonts/truetype/ubuntu/Ubuntu-B.ttf",
+    # Generic Linux fallback
+    "/usr/share/fonts/TTF/DejaVuSans-Bold.ttf",
+]
+
+_REGULAR_FONT_CANDIDATES = [
+    # macOS: Homebrew DejaVu
+    "/opt/homebrew/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+    "/usr/local/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+    # macOS: system fonts
+    "/System/Library/Fonts/Supplemental/Arial.ttf",
+    "/Library/Fonts/Arial.ttf",
+    "/System/Library/Fonts/Helvetica.ttc",
+    # Ubuntu/Debian: fonts-dejavu-core
+    "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+    "/usr/share/fonts/dejavu/DejaVuSans.ttf",
+    # Ubuntu/Debian: fonts-liberation
+    "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
+    "/usr/share/fonts/liberation/LiberationSans-Regular.ttf",
+    # Ubuntu/Debian: fonts-freefont-ttf
+    "/usr/share/fonts/truetype/freefont/FreeSans.ttf",
+    # Ubuntu/Debian: Ubuntu font family
+    "/usr/share/fonts/truetype/ubuntu/Ubuntu-R.ttf",
+    # Generic Linux fallback
+    "/usr/share/fonts/TTF/DejaVuSans.ttf",
+]
+
+
+def _find_font(candidates: list[str]) -> str | None:
+    """Return the first candidate path that exists on disk, or None."""
+    for path in candidates:
+        if os.path.isfile(path):
+            return path
+    return None
+
+
+def _get_fonts() -> tuple[str | None, str | None]:
+    """
+    Return (bold_font, regular_font) as absolute .ttf paths.
+    Returns None for either if no matching file is found (ImageMagick picks its own default).
+    Result is cached after the first call.
+    """
+    if not hasattr(_get_fonts, "_cache"):
+        bold = _find_font(_BOLD_FONT_CANDIDATES)
+        regular = _find_font(_REGULAR_FONT_CANDIDATES)
+
+        if bold:
+            logger.debug("Bold font resolved: %s", bold)
+        else:
+            system = _platform.system()
+            hint = {
+                "Darwin": "brew install font-dejavu  # requires: brew tap homebrew/cask-fonts",
+                "Linux": "sudo apt install fonts-dejavu-core",
+                "Windows": "Install DejaVu fonts from https://dejavu-fonts.github.io",
+            }.get(system, "Install DejaVu or Liberation fonts for your OS")
+            logger.warning(
+                "No bold font found — text will use ImageMagick's default. "
+                "For best results: %s",
+                hint,
+            )
+
+        _get_fonts._cache = (bold, regular)  # type: ignore[attr-defined]
+    return _get_fonts._cache  # type: ignore[attr-defined]
+
+
+# ---------------------------------------------------------------------------
 # Slide builders
 # ---------------------------------------------------------------------------
 
 def _try_import_moviepy():
-    """Import moviepy components, raising ImportError with helpful message if missing."""
+    """Import moviepy components and apply runtime fixes for IMv7."""
     try:
         from moviepy.editor import (
             ImageClip,
@@ -138,6 +313,7 @@ def _try_import_moviepy():
             concatenate_videoclips,
             ColorClip,
         )
+        _configure_imagemagick()
         return ImageClip, TextClip, CompositeVideoClip, AudioFileClip, concatenate_videoclips, ColorClip
     except ImportError as exc:
         raise ImportError(
@@ -178,7 +354,7 @@ def _build_title_slide(
             wrapped,
             fontsize=palette.font_size_headline,
             color=palette.headline_color,
-            font="DejaVu-Sans-Bold",
+            font=_get_fonts()[0],
             method="caption",
             size=(W - 120, None),
             align="center",
@@ -194,7 +370,7 @@ def _build_title_slide(
             "AI Video Summary",
             fontsize=36,
             color=palette.accent_color,
-            font="DejaVu-Sans",
+            font=_get_fonts()[1],
             method="label",
         )
         .set_position(("center", H // 4 + headline_clip.h + 40))
@@ -209,7 +385,7 @@ def _build_title_slide(
                 watermark,
                 fontsize=32,
                 color=palette.watermark_color,
-                font="DejaVu-Sans",
+                font=_get_fonts()[1],
                 method="label",
             )
             .set_position((40, H - 80))
@@ -242,7 +418,7 @@ def _build_summary_slide(
             "SUMMARY",
             fontsize=36,
             color=palette.accent_color,
-            font="DejaVu-Sans-Bold",
+            font=_get_fonts()[0],
             method="label",
         )
         .set_position((60, H // 6))
@@ -256,7 +432,7 @@ def _build_summary_slide(
             wrapped,
             fontsize=palette.font_size_body,
             color=palette.body_color,
-            font="DejaVu-Sans",
+            font=_get_fonts()[1],
             method="caption",
             size=(W - 120, None),
             align="West",
@@ -269,7 +445,7 @@ def _build_summary_slide(
     if watermark:
         wm = (
             TextClip(watermark, fontsize=32, color=palette.watermark_color,
-                     font="DejaVu-Sans", method="label")
+                     font=_get_fonts()[1], method="label")
             .set_position((40, H - 80))
             .set_duration(duration)
         )
@@ -307,7 +483,7 @@ def _build_bullet_slide(
     counter_text = f"{index + 1} / {total}"
     counter = (
         TextClip(counter_text, fontsize=34, color=palette.accent_color,
-                 font="DejaVu-Sans-Bold", method="label")
+                 font=_get_fonts()[0], method="label")
         .set_position((60, H // 5))
         .set_duration(duration)
     )
@@ -325,7 +501,7 @@ def _build_bullet_slide(
             wrapped,
             fontsize=palette.font_size_bullet,
             color=palette.headline_color,
-            font="DejaVu-Sans-Bold",
+            font=_get_fonts()[0],
             method="caption",
             size=(W - 120, None),
             align="West",
@@ -338,7 +514,7 @@ def _build_bullet_slide(
     if watermark:
         wm = (
             TextClip(watermark, fontsize=32, color=palette.watermark_color,
-                     font="DejaVu-Sans", method="label")
+                     font=_get_fonts()[1], method="label")
             .set_position((40, H - 80))
             .set_duration(duration)
         )
@@ -367,7 +543,7 @@ def _build_outro_slide(
             "Follow for more\nAI-powered insights",
             fontsize=60,
             color=palette.headline_color,
-            font="DejaVu-Sans-Bold",
+            font=_get_fonts()[0],
             method="caption",
             size=(W - 120, None),
             align="center",
@@ -382,7 +558,7 @@ def _build_outro_slide(
             watermark or "SnackOnAI",
             fontsize=42,
             color=palette.accent_color,
-            font="DejaVu-Sans-Bold",
+            font=_get_fonts()[0],
             method="label",
         )
         .set_position(("center", H * 2 // 3))
@@ -573,7 +749,7 @@ def generate_thumbnail(
             _wrap_text(summary.headline, 22),
             fontsize=palette.font_size_headline,
             color=palette.headline_color,
-            font="DejaVu-Sans-Bold",
+            font=_get_fonts()[0],
             method="caption",
             size=(W - 120, None),
             align="center",
@@ -585,7 +761,7 @@ def generate_thumbnail(
     if watermark:
         wm = (
             TextClip(watermark, fontsize=36, color=palette.accent_color,
-                     font="DejaVu-Sans-Bold", method="label")
+                     font=_get_fonts()[0], method="label")
             .set_position((40, H - 80))
         )
         layers.append(wm)

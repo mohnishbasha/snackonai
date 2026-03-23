@@ -10,13 +10,16 @@ Each strategy is tried in order until clean text is obtained.
 """
 
 import logging
+import os
 import re
 from dataclasses import dataclass
+from pathlib import Path
+from urllib.parse import urlparse
 
 import requests
 
 from .config import ExtractorConfig, get_config
-from .utils import is_valid_url, retry
+from .utils import is_local_input, is_valid_url, retry
 
 logger = logging.getLogger(__name__)
 
@@ -36,6 +39,22 @@ class ExtractionError(Exception):
 
 class URLValidationError(ExtractionError):
     """Raised when the URL is invalid or unreachable."""
+
+
+def _resolve_local_path(path: str) -> str:
+    """Convert a file:// URL or plain path to an absolute filesystem path."""
+    parsed = urlparse(path)
+    if parsed.scheme == "file":
+        return parsed.path
+    return os.path.abspath(path)
+
+
+def _read_local_file(path: str) -> str:
+    """Read a local HTML or plain-text file and return its contents."""
+    resolved = _resolve_local_path(path)
+    if not os.path.isfile(resolved):
+        raise URLValidationError(f"Local file not found: {resolved!r}")
+    return Path(resolved).read_text(encoding="utf-8", errors="replace")
 
 
 def _fetch_html(url: str, cfg: ExtractorConfig) -> str:
@@ -138,7 +157,14 @@ def _extract_with_newspaper(url: str) -> ArticleContent | None:
 
 def extract_content(url: str, cfg: ExtractorConfig | None = None) -> ArticleContent:
     """
-    Extract clean article content from the given URL.
+    Extract clean article content from a URL or local file path.
+
+    Accepts:
+      - http:// / https:// URLs  (fetched over the network)
+      - file:///path/to/file.html (read from disk)
+      - /absolute/path/to/file.html
+      - relative/path/to/file.html  (resolved relative to cwd)
+      - plain .txt files            (returned as-is, no HTML parsing)
 
     Tries trafilatura → readability-lxml → newspaper3k in order.
     Raises ExtractionError if all strategies fail.
@@ -146,8 +172,44 @@ def extract_content(url: str, cfg: ExtractorConfig | None = None) -> ArticleCont
     if cfg is None:
         cfg = get_config().extractor
 
+    # --- Local file shortcut (no network required) ---
+    if is_local_input(url):
+        resolved = _resolve_local_path(url)
+        logger.info("Reading local file: %s", resolved)
+        html = _read_local_file(url)
+
+        # Plain text files: skip HTML parsing, return directly
+        if resolved.endswith(".txt"):
+            text = _clean_text(html)
+            if not text:
+                raise ExtractionError(f"Local file is empty: {resolved!r}")
+            title = Path(resolved).stem.replace("-", " ").replace("_", " ").title()
+            return ArticleContent(url=url, title=title, text=text)
+
+        # HTML files: run through extraction strategies
+        source_label = f"file://{resolved}"
+        content = (
+            _extract_with_trafilatura(html, source_label)
+            or _extract_with_readability(html, source_label)
+        )
+        if content:
+            logger.info("Extracted %d chars from local file", len(content.text))
+            return content
+
+        # Last resort for local files: strip all tags
+        text = _clean_text(re.sub(r"<[^>]+>", " ", html))
+        if len(text) > 50:
+            title = Path(resolved).stem.replace("-", " ").replace("_", " ").title()
+            return ArticleContent(url=url, title=title, text=text)
+
+        raise ExtractionError(f"Could not extract content from local file: {resolved!r}")
+
+    # --- Remote URL ---
     if not is_valid_url(url):
-        raise URLValidationError(f"Invalid or unsupported URL: {url!r}")
+        raise URLValidationError(
+            f"Invalid input: {url!r}\n"
+            "Pass an http/https URL, a file:// URL, or a local file path."
+        )
 
     logger.info("Fetching content from: %s", url)
 
