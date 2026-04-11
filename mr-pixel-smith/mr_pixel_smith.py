@@ -10,6 +10,7 @@ Usage:
 """
 
 import argparse
+import re
 import subprocess
 import sys
 import shutil
@@ -59,6 +60,14 @@ def check_ollama() -> None:
     except OSError as e:
         print(f"Error checking Ollama status: {e}", file=sys.stderr)
         sys.exit(1)
+
+
+def make_output_filename(prompt: str, width: int, height: int) -> str:
+    """Generate a filename from the prompt and dimensions."""
+    slug = re.sub(r"[^\w\s-]", "", prompt.lower())
+    slug = re.sub(r"[\s_-]+", "_", slug).strip("_")
+    slug = slug[:50].rstrip("_")
+    return f"{slug}_{width}x{height}.png"
 
 
 def validate_prompt(prompt: str) -> str:
@@ -151,12 +160,25 @@ def add_watermark(image_bytes: bytes, text: str) -> bytes:
     return buf.getvalue()
 
 
+def resize_image(image_bytes: bytes, width: int, height: int) -> bytes:
+    """Resize image to the given dimensions and return PNG bytes."""
+    try:
+        img = Image.open(BytesIO(image_bytes))
+    except Exception as e:
+        raise ValueError(f"Could not open image for resizing: {e}") from e
+    if img.size != (width, height):
+        img = img.resize((width, height), Image.LANCZOS)
+    buf = BytesIO()
+    img.save(buf, format="PNG")
+    return buf.getvalue()
+
+
 def generate_image(prompt: str, width: int, height: int) -> bytes:
     """Call Ollama CLI and return raw PNG bytes."""
     print(f"\nGenerating image ({width}×{height}) — this may take a moment…")
     try:
         result = subprocess.run(
-            ["ollama", "run", MODEL, prompt, "--width", str(width), "--height", str(height)],
+            ["ollama", "run", MODEL, prompt],
             capture_output=True, text=True, timeout=300
         )
     except subprocess.TimeoutExpired:
@@ -250,15 +272,23 @@ def main() -> None:
         width  = get_int_input("Width  (px)", width)
         height = get_int_input("Height (px)", height)
 
-    output_path = args.output.strip()
-    if not output_path:
-        output_path = OUTPUT_FILE
-    if not output_path.lower().endswith(".png"):
-        output_path += ".png"
+    if args.output != OUTPUT_FILE:
+        output_path = args.output.strip() or OUTPUT_FILE
+        if not output_path.lower().endswith(".png"):
+            output_path += ".png"
+    else:
+        output_path = make_output_filename(prompt, width, height)
 
     # 3. Generate
     image_bytes = generate_image(prompt, width, height)
     print("  ✓ Image received from Ollama")
+
+    # 3b. Resize to requested dimensions (ollama run ignores --width/--height)
+    try:
+        image_bytes = resize_image(image_bytes, width, height)
+        print(f"  ✓ Resized to {width}×{height}")
+    except Exception as e:
+        print(f"Warning: Resize failed ({e}). Using original dimensions.", file=sys.stderr)
 
     # 4. Watermark
     print(f"Applying watermark: '{WATERMARK_TEXT}'…")
