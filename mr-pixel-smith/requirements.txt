@@ -1,1 +1,8 @@
 pillow>=10.0.0
+
+# FLUX.1 Schnell (HuggingFace Diffusers path)
+diffusers>=0.30.0
+transformers>=4.44.0
+accelerate>=0.33.0
+torch>=2.3.0
+huggingface_hub>=0.24.0
