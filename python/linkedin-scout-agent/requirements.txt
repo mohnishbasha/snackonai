@@ -1,0 +1,3 @@
+beeai-framework
+requests
+pydantic
